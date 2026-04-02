@@ -14,7 +14,7 @@ import com.finance.dashboard.repository.UserRepository;
 import com.finance.dashboard.security.LoginAttemptService;
 import com.finance.dashboard.security.util.JwtUtils;
 import com.finance.dashboard.util.AuditLogger;
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,17 +28,30 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
     private static final String DEFAULT_ROLE = "ROLE_VIEWER";
 
-    private final UserRepository       userRepository;
-    private final RoleRepository       roleRepository;
-    private final PasswordEncoder      passwordEncoder;
+    private final UserRepository        userRepository;
+    private final RoleRepository        roleRepository;
+    private final PasswordEncoder       passwordEncoder;
+    private final JwtUtils              jwtUtils;
+    private final LoginAttemptService   loginAttemptService;
     private final AuthenticationManager authenticationManager;
-    private final JwtUtils             jwtUtils;
-    private final LoginAttemptService  loginAttemptService;
+
+    public AuthService(UserRepository userRepository,
+                       RoleRepository roleRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtils jwtUtils,
+                       LoginAttemptService loginAttemptService,
+                       @Lazy AuthenticationManager authenticationManager) {
+        this.userRepository       = userRepository;
+        this.roleRepository       = roleRepository;
+        this.passwordEncoder      = passwordEncoder;
+        this.jwtUtils             = jwtUtils;
+        this.loginAttemptService  = loginAttemptService;
+        this.authenticationManager = authenticationManager;
+    }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -65,7 +78,6 @@ public class AuthService {
         String username = request.getUsername();
         AuditLogger.loginAttempt(username);
 
-        // ── Brute-force guard ────────────────────────────────────────────────
         if (loginAttemptService.isBlocked(username)) {
             AuditLogger.loginBlocked(username, loginAttemptService.getFailedAttempts(username));
             throw new AccountLockedException(
@@ -73,13 +85,12 @@ public class AuthService {
                     + loginAttemptService.getLockoutMinutes() + " minutes. Try again later.");
         }
 
-        // ── Authenticate ─────────────────────────────────────────────────────
         try {
             Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, request.getPassword()));
 
             UserDetails userDetails = (UserDetails) auth.getPrincipal();
-            loginAttemptService.recordSuccess(username);   // clear counter on success
+            loginAttemptService.recordSuccess(username);
 
             String token = jwtUtils.generateToken(userDetails);
             Set<String> roles = userDetails.getAuthorities().stream()
@@ -95,7 +106,7 @@ public class AuthService {
                             - loginAttemptService.getFailedAttempts(username);
             AuditLogger.loginFailure(username,
                     "bad credentials, remaining attempts=" + Math.max(remaining, 0));
-            throw ex;   // re-throw so GlobalExceptionHandler returns 401
+            throw ex;
         }
     }
 }
