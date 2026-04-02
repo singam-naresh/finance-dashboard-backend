@@ -14,7 +14,7 @@ import com.finance.dashboard.repository.UserRepository;
 import com.finance.dashboard.security.LoginAttemptService;
 import com.finance.dashboard.security.util.JwtUtils;
 import com.finance.dashboard.util.AuditLogger;
-import org.springframework.context.annotation.Lazy;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
     private static final String DEFAULT_ROLE = "ROLE_VIEWER";
@@ -35,23 +36,9 @@ public class AuthService {
     private final UserRepository        userRepository;
     private final RoleRepository        roleRepository;
     private final PasswordEncoder       passwordEncoder;
+    private final AuthenticationManager authenticationManager;
     private final JwtUtils              jwtUtils;
     private final LoginAttemptService   loginAttemptService;
-    private final AuthenticationManager authenticationManager;
-
-    public AuthService(UserRepository userRepository,
-                       RoleRepository roleRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtUtils jwtUtils,
-                       LoginAttemptService loginAttemptService,
-                       @Lazy AuthenticationManager authenticationManager) {
-        this.userRepository       = userRepository;
-        this.roleRepository       = roleRepository;
-        this.passwordEncoder      = passwordEncoder;
-        this.jwtUtils             = jwtUtils;
-        this.loginAttemptService  = loginAttemptService;
-        this.authenticationManager = authenticationManager;
-    }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
