@@ -1,0 +1,22 @@
+# Build artifacts (rebuilt inside Docker)
+target/
+
+# Version control
+.git/
+.gitignore
+
+# Local environment overrides
+.env
+*.env.local
+
+# Documentation
+README.md
+docs/
+
+# Test scripts
+scripts/
+
+# IDE
+.idea/
+.vscode/
+*.iml
