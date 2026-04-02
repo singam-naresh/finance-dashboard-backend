@@ -57,6 +57,10 @@ public class JwtUtils {
     }
 
     private Key getSigningKey() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                "JWT secret is not configured. Set the JWT_SECRET environment variable.");
+        }
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
