@@ -92,11 +92,18 @@ public class FinancialRecordController {
     @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(
         summary = "Get all records (paginated)",
-        description = "Returns all non-deleted records. Supports pagination via ?page=0&size=20&sort=date,desc"
+        description = "Supported sortBy values: date, amount, category. direction: asc or desc."
     )
     public ResponseEntity<Page<FinancialRecordResponse>> getAll(
-            @PageableDefault(size = 20, sort = "date") Pageable pageable) {
-        return ResponseEntity.ok(recordService.getAll(pageable));
+            @Parameter(description = "Page number (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size", example = "20")
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Sort field: date | amount | category", example = "date")
+            @RequestParam(defaultValue = "date") String sortBy,
+            @Parameter(description = "Sort direction: asc | desc", example = "desc")
+            @RequestParam(defaultValue = "desc") String direction) {
+        return ResponseEntity.ok(recordService.getAll(page, size, sortBy, direction));
     }
 
     @GetMapping("/{id}")

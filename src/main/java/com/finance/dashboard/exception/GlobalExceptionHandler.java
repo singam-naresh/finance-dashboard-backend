@@ -4,6 +4,7 @@ import com.finance.dashboard.dto.response.ApiErrorResponse;
 import com.finance.dashboard.util.AuditLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -88,6 +89,15 @@ public class GlobalExceptionHandler {
             BadRequestException ex, HttpServletRequest request) {
         AuditLogger.badRequest(request.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ApiErrorResponse> handlePropertyReference(
+            PropertyReferenceException ex, HttpServletRequest request) {
+        String message = "Invalid sort field: '" + ex.getPropertyName()
+                + "'. Allowed: date, amount, category";
+        AuditLogger.badRequest(request.getRequestURI(), message);
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), null);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

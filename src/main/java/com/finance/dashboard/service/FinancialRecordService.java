@@ -13,11 +13,14 @@ import com.finance.dashboard.repository.UserRepository;
 import com.finance.dashboard.util.AuditLogger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +28,8 @@ public class FinancialRecordService {
 
     private final FinancialRecordRepository recordRepository;
     private final UserRepository            userRepository;
+
+    private static final List<String> ALLOWED_SORT_FIELDS = List.of("date", "amount", "category");
 
     @Transactional
     public FinancialRecordResponse create(FinancialRecordRequest request) {
@@ -45,6 +50,20 @@ public class FinancialRecordService {
         return new FinancialRecordResponse(saved);
     }
 
+    @Transactional(readOnly = true)
+    public Page<FinancialRecordResponse> getAll(int page, int size, String sortBy, String direction) {
+        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            throw new BadRequestException(
+                "Invalid sort field: '" + sortBy + "'. Allowed: " + ALLOWED_SORT_FIELDS);
+        }
+        Sort sort = direction.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
+    }
+
+    // kept for filter endpoints that still use Pageable directly
     @Transactional(readOnly = true)
     public Page<FinancialRecordResponse> getAll(Pageable pageable) {
         return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
