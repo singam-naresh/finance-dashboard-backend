@@ -34,7 +34,7 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
         ApiErrorResponse body = ApiErrorResponse.builder()
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                .message("Invalid token")
+                .message("Authentication required — please provide a valid Bearer token")
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();

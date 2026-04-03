@@ -1,5 +1,6 @@
 package com.finance.dashboard.config;
 
+import com.finance.dashboard.security.JwtAccessDeniedHandler;
 import com.finance.dashboard.security.JwtAuthEntryPoint;
 import com.finance.dashboard.security.filter.JwtAuthenticationFilter;
 import com.finance.dashboard.security.filter.StrictQueryParamFilter;
@@ -29,15 +30,18 @@ public class SecurityConfig {
     private final StrictQueryParamFilter  strictParamFilter;
     private final UserDetailsService      userDetailsService;
     private final JwtAuthEntryPoint       authEntryPoint;
+    private final JwtAccessDeniedHandler  accessDeniedHandler;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
                           StrictQueryParamFilter strictParamFilter,
                           UserDetailsService userDetailsService,
-                          JwtAuthEntryPoint authEntryPoint) {
-        this.jwtAuthFilter    = jwtAuthFilter;
-        this.strictParamFilter = strictParamFilter;
-        this.userDetailsService = userDetailsService;
-        this.authEntryPoint   = authEntryPoint;
+                          JwtAuthEntryPoint authEntryPoint,
+                          JwtAccessDeniedHandler accessDeniedHandler) {
+        this.jwtAuthFilter       = jwtAuthFilter;
+        this.strictParamFilter   = strictParamFilter;
+        this.userDetailsService  = userDetailsService;
+        this.authEntryPoint      = authEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
     }
 
     @Bean
@@ -64,7 +68,10 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
+            )
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
