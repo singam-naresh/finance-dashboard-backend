@@ -10,7 +10,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,7 +22,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
@@ -78,8 +76,8 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST,   "/api/records/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT,    "/api/records/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST,   "/api/records/**").hasAnyRole("ANALYST", "ADMIN")
+                .requestMatchers(HttpMethod.PUT,    "/api/records/**").hasAnyRole("ANALYST", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/records/**").hasRole("ADMIN")
                 .requestMatchers("/api/dashboard/**").hasAnyRole("ANALYST", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/records/**").hasAnyRole("VIEWER", "ANALYST", "ADMIN")

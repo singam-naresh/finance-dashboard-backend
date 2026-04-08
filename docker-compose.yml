@@ -6,15 +6,15 @@ services:
     container_name: finance_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: finance_db
-      POSTGRES_USER: finance_user
-      POSTGRES_PASSWORD: finance_pass
+      POSTGRES_DB:       ${POSTGRES_DB:-finance_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-finance_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance_pass}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finance_user -d finance_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finance_user} -d ${POSTGRES_DB:-finance_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,11 +29,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/finance_db
-      DB_USERNAME: finance_user
-      DB_PASSWORD: finance_pass
-      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-      JWT_EXPIRATION_MS: 86400000
+      DB_URL:            jdbc:postgresql://postgres:5432/${POSTGRES_DB:-finance_db}
+      DB_USERNAME:       ${POSTGRES_USER:-finance_user}
+      DB_PASSWORD:       ${POSTGRES_PASSWORD:-finance_pass}
+      JWT_SECRET:        ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
     ports:
       - "8080:8080"
     healthcheck:
@@ -41,19 +41,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 40s
-
-  frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-    container_name: finance_frontend
-    restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
-    ports:
-      - "3000:80"
+      start_period: 60s
 
 volumes:
   postgres_data:

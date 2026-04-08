@@ -69,7 +69,13 @@ public interface FinancialRecordRepository
 
     Page<FinancialRecord> findByType(RecordType type, Pageable pageable);
 
+    Page<FinancialRecord> findByUserUsernameAndType(String username, RecordType type, Pageable pageable);
+
     Page<FinancialRecord> findByCategory(String category, Pageable pageable);
+
+    Page<FinancialRecord> findByUserUsernameAndCategory(String username, String category, Pageable pageable);
+
+    Page<FinancialRecord> findByUserUsername(String username, Pageable pageable);
 
     @Query("""
         SELECT r FROM FinancialRecord r

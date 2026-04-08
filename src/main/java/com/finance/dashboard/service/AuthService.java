@@ -15,6 +15,7 @@ import com.finance.dashboard.security.LoginAttemptService;
 import com.finance.dashboard.security.util.JwtUtils;
 import com.finance.dashboard.util.AuditLogger;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,11 +28,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private static final String DEFAULT_ROLE = "ROLE_VIEWER";
+    private static final String DEFAULT_ROLE = "ROLE_ANALYST";
 
     private final UserRepository        userRepository;
     private final RoleRepository        roleRepository;
@@ -42,23 +44,31 @@ public class AuthService {
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new ConflictException("Username already taken: " + request.getUsername());
+        try {
+            if (userRepository.existsByUsername(request.getUsername())) {
+                throw new ConflictException("Username already taken: " + request.getUsername());
+            }
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new ConflictException("Email already registered: " + request.getEmail());
+            }
+
+            Role viewerRole = roleRepository.findByName(DEFAULT_ROLE)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Default role '" + DEFAULT_ROLE + "' not found — DB may not be seeded"));
+
+            User user = new User(request.getUsername(), request.getEmail(),
+                    passwordEncoder.encode(request.getPassword()));
+            user.getRoles().add(viewerRole);
+
+            User saved = userRepository.save(user);
+            AuditLogger.userRegistered(saved.getUsername());
+            return new UserResponse(saved);
+        } catch (ConflictException | ResourceNotFoundException e) {
+            throw e; // handled by GlobalExceptionHandler
+        } catch (Exception e) {
+            log.error("event=REGISTER_ERROR username={} error={}", request.getUsername(), e.getMessage(), e);
+            throw e;
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ConflictException("Email already registered: " + request.getEmail());
-        }
-
-        Role viewerRole = roleRepository.findByName(DEFAULT_ROLE)
-                .orElseThrow(() -> new ResourceNotFoundException("Default role not found"));
-
-        User user = new User(request.getUsername(), request.getEmail(),
-                passwordEncoder.encode(request.getPassword()));
-        user.getRoles().add(viewerRole);
-
-        User saved = userRepository.save(user);
-        AuditLogger.userRegistered(saved.getUsername());
-        return new UserResponse(saved);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -84,6 +94,7 @@ public class AuthService {
                     .map(a -> a.getAuthority())
                     .collect(Collectors.toSet());
 
+            log.info("event=TOKEN_ISSUED username={} roles={}", username, roles);
             AuditLogger.loginSuccess(username, roles);
             return new AuthResponse(token, username, roles);
 

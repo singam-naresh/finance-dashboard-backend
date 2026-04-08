@@ -22,7 +22,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,19 +37,18 @@ public class FinancialRecordController {
 
     private final FinancialRecordService recordService;
 
-    // ── Write endpoints (ADMIN only) ────────────────────────────────────────
+    // ── Write endpoints ──────────────────────────────────────────────────────
+    // Authorization enforced in SecurityConfig (ANALYST + ADMIN for POST/PUT, ADMIN for DELETE)
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Create a financial record",
-        description = "Creates a new financial record. Requires ROLE_ADMIN. Returns 409 if a duplicate record exists."
+        description = "Requires ROLE_ANALYST or ROLE_ADMIN. Record is owned by the authenticated user."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Record created"),
         @ApiResponse(responseCode = "400", description = "Validation error",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "404", description = "User not found"),
         @ApiResponse(responseCode = "409", description = "Duplicate record detected")
     })
     public ResponseEntity<FinancialRecordResponse> create(@Valid @RequestBody FinancialRecordRequest request) {
@@ -58,12 +56,13 @@ public class FinancialRecordController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update a financial record", description = "Full update of a record. Requires ROLE_ADMIN.")
+    @Operation(summary = "Update a financial record",
+        description = "Requires ROLE_ANALYST or ROLE_ADMIN. ANALYST can only update their own records.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Record updated"),
         @ApiResponse(responseCode = "400", description = "Validation error"),
-        @ApiResponse(responseCode = "404", description = "Record or user not found")
+        @ApiResponse(responseCode = "403", description = "Not the record owner"),
+        @ApiResponse(responseCode = "404", description = "Record not found")
     })
     public ResponseEntity<FinancialRecordResponse> update(
             @Parameter(description = "Record ID", required = true)
@@ -73,8 +72,7 @@ public class FinancialRecordController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Soft-delete a financial record", description = "Marks record as deleted. Requires ROLE_ADMIN.")
+    @Operation(summary = "Soft-delete a financial record", description = "Requires ROLE_ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Record deleted"),
         @ApiResponse(responseCode = "404", description = "Record not found")
@@ -86,10 +84,10 @@ public class FinancialRecordController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── Read endpoints (VIEWER, ANALYST, ADMIN) ─────────────────────────────
+    // ── Read endpoints ───────────────────────────────────────────────────────
+    // Authorization enforced in SecurityConfig (VIEWER + ANALYST + ADMIN for GET)
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(
         summary = "Get all records (paginated)",
         description = "Supported sortBy values: date, amount, category. direction: asc or desc."
@@ -107,7 +105,6 @@ public class FinancialRecordController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(summary = "Get a record by ID")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Record found"),
@@ -119,13 +116,12 @@ public class FinancialRecordController {
         return ResponseEntity.ok(recordService.getById(id));
     }
 
-    // ── Filter endpoints ────────────────────────────────────────────────────
+    // ── Filter endpoints ─────────────────────────────────────────────────────
 
     @GetMapping("/filter/type")
-    @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(
         summary = "Filter records by type",
-        description = "Accepted values: INCOME, EXPENSE. Returns empty page if no matches."
+        description = "Accepted values: INCOME, EXPENSE."
     )
     @ApiResponse(responseCode = "400", description = "Invalid or missing 'type' parameter")
     public ResponseEntity<Page<FinancialRecordResponse>> filterByType(
@@ -136,10 +132,9 @@ public class FinancialRecordController {
     }
 
     @GetMapping("/filter/category")
-    @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(
         summary = "Filter records by category",
-        description = "Case-sensitive category match. Returns empty page if no matches."
+        description = "Case-sensitive category match."
     )
     @ApiResponse(responseCode = "400", description = "Missing 'category' parameter")
     public ResponseEntity<Page<FinancialRecordResponse>> filterByCategory(
@@ -150,10 +145,9 @@ public class FinancialRecordController {
     }
 
     @GetMapping("/filter/date-range")
-    @PreAuthorize("hasAnyRole('VIEWER', 'ANALYST', 'ADMIN')")
     @Operation(
         summary = "Filter records by date range",
-        description = "Both 'from' and 'to' are required in ISO format (yyyy-MM-dd). Returns 400 if 'from' is after 'to'."
+        description = "Both 'from' and 'to' required in ISO format (yyyy-MM-dd)."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Filtered records (may be empty)"),

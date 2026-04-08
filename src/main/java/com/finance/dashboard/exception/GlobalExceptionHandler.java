@@ -1,5 +1,6 @@
 package com.finance.dashboard.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.finance.dashboard.dto.response.ApiErrorResponse;
 import com.finance.dashboard.util.AuditLogger;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +22,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -65,6 +67,31 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableBody(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
+
+        // Detect enum deserialization failure and return structured fieldErrors
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException ife
+                && ife.getTargetType() != null
+                && ife.getTargetType().isEnum()) {
+
+            String fieldName = ife.getPath().isEmpty()
+                    ? "field"
+                    : ife.getPath().get(ife.getPath().size() - 1).getFieldName();
+
+            String invalidValue = String.valueOf(ife.getValue());
+            String allowedValues = Arrays.stream(ife.getTargetType().getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+
+            String errorMsg = "Invalid value '" + invalidValue
+                    + "'. Allowed values: " + allowedValues;
+
+            Map<String, String> fieldErrors = Map.of(fieldName, errorMsg);
+            AuditLogger.validationFailed(request.getRequestURI(), fieldErrors);
+            return buildResponse(HttpStatus.BAD_REQUEST, "Validation failed",
+                    request.getRequestURI(), fieldErrors);
+        }
+
         AuditLogger.badRequest(request.getRequestURI(), "malformed request body");
         return buildResponse(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body",
                 request.getRequestURI(), null);

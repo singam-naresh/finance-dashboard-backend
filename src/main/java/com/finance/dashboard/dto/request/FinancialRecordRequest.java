@@ -32,7 +32,7 @@ public class FinancialRecordRequest {
     @Size(max = 1000, message = "Description must not exceed 1000 characters")
     private String description;
 
-    @NotNull(message = "User ID is required")
-    @Positive(message = "User ID must be a positive number")
+    // userId is intentionally ignored on create/update — user is resolved from JWT.
+    // Field kept here so clients sending userId do not get a deserialization error.
     private Long userId;
 }

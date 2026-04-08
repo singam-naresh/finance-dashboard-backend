@@ -16,6 +16,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +36,7 @@ public class FinancialRecordService {
 
     @Transactional
     public FinancialRecordResponse create(FinancialRecordRequest request) {
-        User user = findUserOrThrow(request.getUserId());
+        User user = resolveAuthenticatedUser();
 
         if (recordRepository.existsDuplicate(
                 user.getId(), request.getAmount(), request.getType(),
@@ -60,28 +63,49 @@ public class FinancialRecordService {
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
+        if (isAdmin()) {
+            return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
+        }
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return recordRepository.findByUserUsername(username, pageable).map(FinancialRecordResponse::new);
     }
 
     // kept for filter endpoints that still use Pageable directly
     @Transactional(readOnly = true)
     public Page<FinancialRecordResponse> getAll(Pageable pageable) {
-        return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
+        if (isAdmin()) {
+            return recordRepository.findAll(pageable).map(FinancialRecordResponse::new);
+        }
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return recordRepository.findByUserUsername(username, pageable).map(FinancialRecordResponse::new);
     }
 
     @Transactional(readOnly = true)
     public FinancialRecordResponse getById(Long id) {
-        return new FinancialRecordResponse(findRecordOrThrow(id));
+        FinancialRecord record = findRecordOrThrow(id);
+        if (!isAdmin() && !record.getUser().getUsername().equals(
+                SecurityContextHolder.getContext().getAuthentication().getName())) {
+            throw new AccessDeniedException("You cannot access this record");
+        }
+        return new FinancialRecordResponse(record);
     }
 
     @Transactional(readOnly = true)
     public Page<FinancialRecordResponse> filterByType(RecordType type, Pageable pageable) {
-        return recordRepository.findByType(type, pageable).map(FinancialRecordResponse::new);
+        if (isAdmin()) {
+            return recordRepository.findByType(type, pageable).map(FinancialRecordResponse::new);
+        }
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return recordRepository.findByUserUsernameAndType(username, type, pageable).map(FinancialRecordResponse::new);
     }
 
     @Transactional(readOnly = true)
     public Page<FinancialRecordResponse> filterByCategory(String category, Pageable pageable) {
-        return recordRepository.findByCategory(category.trim(), pageable).map(FinancialRecordResponse::new);
+        if (isAdmin()) {
+            return recordRepository.findByCategory(category.trim(), pageable).map(FinancialRecordResponse::new);
+        }
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return recordRepository.findByUserUsernameAndCategory(username, category.trim(), pageable).map(FinancialRecordResponse::new);
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +119,13 @@ public class FinancialRecordService {
     @Transactional
     public FinancialRecordResponse update(Long id, FinancialRecordRequest request) {
         FinancialRecord record = findRecordOrThrow(id);
-        User user = findUserOrThrow(request.getUserId());
+        User user = resolveAuthenticatedUser();
+
+        // Ownership check: ANALYST can only update their own records; ADMIN is unrestricted
+        if (!isAdmin() && !record.getUser().getUsername().equals(user.getUsername())) {
+            throw new AccessDeniedException(
+                    "You do not have permission to update records owned by another user");
+        }
 
         boolean isDuplicate = recordRepository.existsDuplicate(
                 user.getId(), request.getAmount(), request.getType(),
@@ -119,6 +149,7 @@ public class FinancialRecordService {
     @Transactional
     public void delete(Long id) {
         FinancialRecord record = findRecordOrThrow(id);
+        // DELETE is ADMIN-only (enforced in SecurityConfig), no ownership check needed
         record.setDeleted(true);
         recordRepository.save(record);
         AuditLogger.recordDeleted(id);
@@ -145,5 +176,19 @@ public class FinancialRecordService {
     private User findUserOrThrow(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+    }
+
+    private User resolveAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Authenticated user not found in database: " + username));
+    }
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 }
